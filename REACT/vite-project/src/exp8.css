@@ -1,0 +1,31 @@
+.exp8-container {
+  text-align: center;
+  margin-top: 100px;
+  font-family: Arial, sans-serif;
+}
+
+.exp8-container h1 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.exp8-container h2 {
+  font-size: 90px;
+  color: #0d6efd;
+  margin: 30px 0;
+}
+
+.buttons button {
+  padding: 12px 25px;
+  margin: 10px;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: #0d6efd;
+  color: white;
+}
+
+.buttons button:hover {
+  background-color: #0b5ed7;
+}

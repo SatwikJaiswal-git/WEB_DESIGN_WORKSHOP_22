@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Content Changer</title>
+    <style>
+        body { font-family: Arial; background-color: #f4f4f4; text-align: center; }
+        .container { width: 600px; margin: 50px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 0 10px gray; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        input { padding: 8px; width: 250px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 id="mainHeading">Welcome to JavaScript Lab</h2>
+        <input type="text" id="userInput" placeholder="Enter new heading text">
+        <br><br>
+        <button onclick="changeText()">Change Heading</button>
+        <button onclick="changeBackground()">Change Background</button>
+        <button onclick="increaseFont()">Increase Font Size</button>
+        <button onclick="toggleParagraph()">Show/Hide Paragraph</button>
+        <button onclick="resetPage()">Reset</button>
+
+        <p id="paragraph">This is a sample paragraph. JavaScript events can dynamically change content.</p>
+    </div>
+
+    <script>
+        let fontSize = 16;
+
+        function changeText() {
+            let input = document.getElementById("userInput").value;
+            if (input) document.getElementById("mainHeading").innerHTML = input;
+        }
+
+        function changeBackground() {
+            document.body.style.backgroundColor = "#" + Math.floor(Math.random()*16777215).toString(16);
+        }
+
+        function increaseFont() {
+            fontSize += 2;
+            document.getElementById("paragraph").style.fontSize = fontSize + "px";
+        }
+
+        function toggleParagraph() {
+            let para = document.getElementById("paragraph");
+            para.style.display = (para.style.display === "none") ? "block" : "none";
+        }
+
+        function resetPage() {
+            document.getElementById("mainHeading").innerHTML = "Welcome to JavaScript Lab";
+            document.getElementById("paragraph").style.display = "block";
+            document.getElementById("paragraph").style.fontSize = "16px";
+            document.body.style.backgroundColor = "#f4f4f4";
+            document.getElementById("userInput").value = "";
+            fontSize = 16;
+        }
+    </script>
+</body>
+</html>
