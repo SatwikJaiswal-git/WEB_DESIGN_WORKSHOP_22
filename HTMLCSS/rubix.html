@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RUBIK · A 3D Cube Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --bg-2:#13131a;
+    --bg-3:#1c1c26;
+    --ink:#f4f4f6;
+    --ink-mute:#8b8b97;
+    --ink-dim:#5a5a66;
+    --accent:#00ffd1;
+    --accent-2:#ff3366;
+    --gold:#ffcc33;
+    --line:rgba(255,255,255,.08);
+    --line-bright:rgba(255,255,255,.18);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;user-select:none}
+
+  html,body{
+    height:100%;
+    overflow:hidden;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+  }
+
+  body{
+    background:
+      radial-gradient(circle at 20% 30%, rgba(0,255,209,.06) 0, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(255,51,102,.05) 0, transparent 50%),
+      var(--bg);
+    position:relative;
+  }
+
+  /* subtle grid */
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:60px 60px;
+    pointer-events:none;
+    z-index:1;
+    opacity:.5;
+  }
+
+  /* noise */
+  body::after{
+    content:"";
+    position:fixed;inset:0;
+    pointer-events:none;
+    z-index:2;
+    opacity:.04;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ============ LAYOUT ============ */
+  .app{
+    position:relative;
+    z-index:5;
+    display:grid;
+    grid-template-columns:280px 1fr 280px;
+    grid-template-rows:auto 1fr auto;
+    height:100vh;
+    gap:0;
+  }
+
+  /* ============ HEADER ============ */
+  header{
+    grid-column:1/-1;
+    padding:18px 28px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:1px solid var(--line);
+    background:rgba(10,10,15,.6);
+    backdrop-filter:blur(20px);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .brand-logo{
+    width:32px;height:32px;
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:2px;
+  }
+  .brand-logo span{
+    background:var(--accent);
+    border-radius:1px;
+    animation:logoPulse 3s ease-in-out infinite;
+  }
+  .brand-logo span:nth-child(1){animation-delay:0s;background:#ff3b30}
+  .brand-logo span:nth-child(2){animation-delay:.1s;background:#34c759}
+  .brand-logo span:nth-child(3){animation-delay:.2s;background:#007aff}
+  .brand-logo span:nth-child(4){animation-delay:.3s;background:#ffcc00}
+  .brand-logo span:nth-child(5){animation-delay:.4s;background:var(--accent)}
+  .brand-logo span:nth-child(6){animation-delay:.5s;background:#ff9500}
+  .brand-logo span:nth-child(7){animation-delay:.6s;background:#af52de}
+  .brand-logo span:nth-child(8){animation-delay:.7s;background:#5ac8fa}
+  .brand-logo span:nth-child(9){animation-delay:.8s;background:#ff3366}
+  @keyframes logoPulse{
+    0%,100%{opacity:.4;transform:scale(.9)}
+    50%{opacity:1;transform:scale(1)}
+  }
+  .brand-text h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:.15em;
+    line-height:1;
+  }
+  .brand-text p{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:.2em;
+    color:var(--ink-mute);
+    margin-top:4px;
+    text-transform:uppercase;
+  }
+
+  .header-stats{
+    display:flex;
+    gap:32px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    color:var(--ink-mute);
+  }
+  .header-stat strong{
+    display:block;
+    color:var(--accent);
+    font-size:18px;
+    font-weight:700;
+    margin-top:2px;
+    letter-spacing:.05em;
+  }
+  .header-stat.timer strong{color:var(--gold)}
+  .header-stat.moves strong{color:var(--accent-2)}
+
+  /* ============ SIDEBARS ============ */
+  aside{
+    background:rgba(19,19,26,.4);
+    backdrop-filter:blur(20px);
+    border-right:1px solid var(--line);
+    padding:24px 20px;
+    overflow-y:auto;
+  }
+  aside.right{
+    border-right:none;
+    border-left:1px solid var(--line);
+  }
+
+  .panel{
+    margin-bottom:28px;
+  }
+  .panel-title{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:.25em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin-bottom:14px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-title::before{
+    content:"";
+    width:6px;height:6px;
+    background:var(--accent);
+    border-radius:50%;
+    box-shadow:0 0 8px var(--accent);
+  }
+
+  /* ============ BUTTONS ============ */
+  .btn{
+    background:var(--bg-3);
+    border:1px solid var(--line-bright);
+    color:var(--ink);
+    padding:10px 14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.1em;
+    cursor:pointer;
+    transition:all .2s;
+    border-radius:4px;
+    text-transform:uppercase;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    width:100%;
+  }
+  .btn:hover{
+    background:var(--accent);
+    color:var(--bg);
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 4px 12px rgba(0,255,209,.25);
+  }
+  .btn:active{transform:translateY(0)}
+  .btn.danger:hover{background:var(--accent-2);border-color:var(--accent-2);box-shadow:0 4px 12px rgba(255,51,102,.25)}
+  .btn.gold:hover{background:var(--gold);border-color:var(--gold);color:var(--bg);box-shadow:0 4px 12px rgba(255,204,51,.25)}
+
+  .btn-row{
+    display:grid;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .btn-row.cols-2{grid-template-columns:1fr 1fr}
+  .btn-row.cols-3{grid-template-columns:1fr 1fr 1fr}
+
+  /* ============ MOVE BUTTONS ============ */
+  .moves-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:6px;
+  }
+  .move-btn{
+    background:var(--bg-3);
+    border:1px solid var(--line-bright);
+    color:var(--ink);
+    padding:10px 8px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    font-weight:700;
+    cursor:pointer;
+    transition:all .15s;
+    border-radius:4px;
+    position:relative;
+    overflow:hidden;
+  }
+  .move-btn::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:var(--accent);
+    transform:translateX(-100%);
+    transition:transform .25s;
+    z-index:-1;
+  }
+  .move-btn:hover{color:var(--bg);border-color:var(--accent)}
+  .move-btn:hover::before{transform:translateX(0)}
+  .move-btn .face{
+    font-size:16px;
+    display:block;
+    margin-bottom:2px;
+  }
+  .move-btn .dir{
+    font-size:9px;
+    color:var(--ink-mute);
+    letter-spacing:.1em;
+  }
+  .move-btn:hover .dir{color:var(--bg)}
+
+  .face-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--ink-mute);
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    margin:14px 0 6px;
+    text-align:center;
+  }
+
+  /* ============ CANVAS ============ */
+  .canvas-wrap{
+    position:relative;
+    overflow:hidden;
+    background:radial-gradient(ellipse at center, rgba(0,255,209,.04) 0, transparent 70%);
+  }
+  #cube-canvas{
+    width:100%;
+    height:100%;
+    display:block;
+    cursor:grab;
+  }
+  #cube-canvas:active{cursor:grabbing}
+
+  /* HUD overlays on canvas */
+  .hud{
+    position:absolute;
+    pointer-events:none;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--ink-mute);
+  }
+  .hud.tl{top:20px;left:20px}
+  .hud.tr{top:20px;right:20px;text-align:right}
+  .hud.bl{bottom:20px;left:20px}
+  .hud.br{bottom:20px;right:20px;text-align:right}
+  .hud .accent{color:var(--accent)}
+  .hud .hot{color:var(--accent-2)}
+  .hud .gold{color:var(--gold)}
+  .hud .big{font-size:24px;font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:.05em}
+  .hud-block{
+    background:rgba(10,10,15,.7);
+    backdrop-filter:blur(10px);
+    border:1px solid var(--line);
+    padding:10px 14px;
+    border-radius:4px;
+    line-height:1.6;
+  }
+
+  .corner-deco{
+    position:absolute;
+    width:30px;height:30px;
+    pointer-events:none;
+  }
+  .corner-deco.tl{top:10px;left:10px;border-top:2px solid var(--accent);border-left:2px solid var(--accent)}
+  .corner-deco.tr{top:10px;right:10px;border-top:2px solid var(--accent);border-right:2px solid var(--accent)}
+  .corner-deco.bl{bottom:10px;left:10px;border-bottom:2px solid var(--accent);border-left:2px solid var(--accent)}
+  .corner-deco.br{bottom:10px;right:10px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent)}
+
+  /* ============ HISTORY ============ */
+  .history{
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:12px;
+    height:120px;
+    overflow-y:auto;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    line-height:1.7;
+    color:var(--ink-mute);
+  }
+  .history::-webkit-scrollbar{width:6px}
+  .history::-webkit-scrollbar-track{background:transparent}
+  .history::-webkit-scrollbar-thumb{background:var(--line-bright);border-radius:3px}
+  .history-empty{
+    color:var(--ink-dim);
+    font-style:italic;
+    font-family:'Instrument Serif',serif;
+    font-size:14px;
+    text-align:center;
+    padding-top:30px;
+  }
+  .history-move{
+    display:inline-block;
+    background:var(--bg-3);
+    color:var(--accent);
+    padding:2px 8px;
+    margin:2px;
+    border-radius:3px;
+    font-weight:700;
+    transition:all .2s;
+  }
+  .history-move.recent{
+    background:var(--accent);
+    color:var(--bg);
+    box-shadow:0 0 12px rgba(0,255,209,.5);
+  }
+  .history-move.prime{color:var(--accent-2)}
+
+  /* ============ SETTINGS ============ */
+  .setting{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--ink-mute);
+    letter-spacing:.05em;
+  }
+  .setting:last-child{border-bottom:none}
+  .setting label{flex:1}
+  .toggle{
+    position:relative;
+    width:36px;
+    height:18px;
+    background:var(--bg-3);
+    border:1px solid var(--line-bright);
+    border-radius:10px;
+    cursor:pointer;
+    transition:all .25s;
+  }
+  .toggle::after{
+    content:"";
+    position:absolute;
+    width:12px;height:12px;
+    background:var(--ink-mute);
+    border-radius:50%;
+    top:2px;left:2px;
+    transition:all .25s;
+  }
+  .toggle.on{background:var(--accent);border-color:var(--accent)}
+  .toggle.on::after{left:20px;background:var(--bg)}
+
+  .slider{
+    width:80px;
+    height:4px;
+    appearance:none;
+    background:var(--bg-3);
+    border:1px solid var(--line-bright);
+    border-radius:2px;
+    outline:none;
+  }
+  .slider::-webkit-slider-thumb{
+    appearance:none;
+    width:12px;height:12px;
+    background:var(--accent);
+    border-radius:50%;
+    cursor:pointer;
+    box-shadow:0 0 8px var(--accent);
+  }
+  .slider::-moz-range-thumb{
+    width:12px;height:12px;
+    background:var(--accent);
+    border-radius:50%;
+    cursor:pointer;
+    border:none;
+  }
+
+  /* ============ FOOTER ============ */
+  footer{
+    grid-column:1/-1;
+    padding:12px 28px;
+    border-top:1px solid var(--line);
+    background:rgba(10,10,15,.6);
+    backdrop-filter:blur(20px);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+  }
+  footer .hot{color:var(--accent-2)}
+  footer .accent{color:var(--accent)}
+
+  /* ============ MODAL ============ */
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(10,10,15,.85);
+    backdrop-filter:blur(10px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    animation:fadeIn .3s ease;
+  }
+  .modal-overlay.show{display:flex}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal{
+    background:var(--bg-2);
+    border:1px solid var(--accent);
+    padding:50px 60px;
+    text-align:center;
+    border-radius:6px;
+    max-width:480px;
+    box-shadow:0 20px 60px rgba(0,255,209,.2);
+    animation:modalIn .4s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes modalIn{
+    from{transform:scale(.85);opacity:0}
+    to{transform:scale(1);opacity:1}
+  }
+  .modal h2{
+    font-family:'Instrument Serif',serif;
+    font-size:48px;
+    font-style:italic;
+    color:var(--gold);
+    margin-bottom:14px;
+    line-height:1;
+  }
+  .modal p{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    color:var(--ink-mute);
+    letter-spacing:.1em;
+    margin-bottom:30px;
+    line-height:1.6;
+  }
+  .modal .stat-row{
+    display:flex;
+    justify-content:center;
+    gap:40px;
+    margin-bottom:30px;
+  }
+  .modal .stat-row .val{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:32px;
+    font-weight:700;
+    color:var(--accent);
+    line-height:1;
+  }
+  .modal .stat-row .lbl{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    letter-spacing:.25em;
+    text-transform:uppercase;
+    color:var(--ink-mute);
+    margin-top:4px;
+  }
+
+  /* ============ HELP HINT ============ */
+  .keyboard-hints{
+    position:fixed;
+    bottom:60px;left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:20px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--ink-dim);
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    pointer-events:none;
+    z-index:10;
+    opacity:0;
+    transition:opacity .4s;
+  }
+  .keyboard-hints.show{opacity:1}
+  .keyboard-hints kbd{
+    background:var(--bg-3);
+    border:1px solid var(--line-bright);
+    padding:3px 8px;
+    border-radius:3px;
+    color:var(--ink);
+    margin:0 4px;
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  /* ============ LOADING SCREEN ============ */
+  .loader{
+    position:fixed;
+    inset:0;
+    background:var(--bg);
+    z-index:200;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:24px;
+    transition:opacity .6s, visibility .6s;
+  }
+  .loader.hide{opacity:0;visibility:hidden;pointer-events:none}
+  .loader-cube{
+    width:60px;height:60px;
+    position:relative;
+    animation:loaderSpin 2s linear infinite;
+  }
+  .loader-cube div{
+    position:absolute;
+    inset:0;
+    border:2px solid var(--accent);
+    opacity:.7;
+  }
+  .loader-cube div:nth-child(2){transform:rotate(45deg);border-color:var(--accent-2)}
+  .loader-cube div:nth-child(3){transform:rotate(90deg);border-color:var(--gold)}
+  @keyframes loaderSpin{
+    from{transform:rotate(0)}
+    to{transform:rotate(360deg)}
+  }
+  .loader-text{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    color:var(--ink-mute);
+  }
+  .loader-text .accent{color:var(--accent)}
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width:1100px){
+    .app{grid-template-columns:240px 1fr 240px}
+  }
+  @media (max-width:900px){
+    .app{
+      grid-template-columns:1fr;
+      grid-template-rows:auto 1fr auto auto;
+    }
+    aside{display:none}
+    aside.show-mobile{
+      display:block;
+      position:fixed;
+      top:60px;bottom:50px;
+      left:0;right:0;
+      z-index:50;
+      width:100%;
+    }
+    .header-stats{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div class="loader" id="loader">
+  <div class="loader-cube">
+    <div></div><div></div><div></div>
+  </div>
+  <div class="loader-text">Initializing <span class="accent">3D Engine</span>...</div>
+</div>
+
+<!-- WIN MODAL -->
+<div class="modal-overlay" id="winModal">
+  <div class="modal">
+    <h2>Solved.</h2>
+    <p>You restored order to the chaos.</p>
+    <div class="stat-row">
+      <div>
+        <div class="val" id="winTime">00:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div>
+        <div class="val" id="winMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+    </div>
+    <button class="btn" onclick="document.getElementById('winModal').classList.remove('show')">CONTINUE</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
+      </div>
+      <div class="brand-text">
+        <h1>RUBIK</h1>
+        <p>3D Cube Simulator · v1.0</p>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="header-stat moves">
+        Moves
+        <strong id="moveCount">0</strong>
+      </div>
+      <div class="header-stat timer">
+        Time
+        <strong id="timer">00:00</strong>
+      </div>
+      <div class="header-stat">
+        Status
+        <strong id="status" style="color:var(--accent)">SOLVED</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- LEFT SIDEBAR — CONTROLS -->
+  <aside class="left">
+    <div class="panel">
+      <div class="panel-title">Actions</div>
+      <div class="btn-row">
+        <button class="btn gold" id="scrambleBtn">⚡ SCRAMBLE</button>
+      </div>
+      <div class="btn-row cols-2">
+        <button class="btn danger" id="resetBtn">↻ RESET</button>
+        <button class="btn" id="undoBtn">⏪ UNDO</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="solveBtn">▶ AUTO-SOLVE</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">View</div>
+      <div class="btn-row cols-3">
+        <button class="btn" data-view="front">FRONT</button>
+        <button class="btn" data-view="iso">ISO</button>
+        <button class="btn" data-view="top">TOP</button>
+      </div>
+      <div class="btn-row cols-3">
+        <button class="btn" data-view="left">LEFT</button>
+        <button class="btn" data-view="right">RIGHT</button>
+        <button class="btn" data-view="back">BACK</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Settings</div>
+      <div class="setting">
+        <label>Auto-rotate</label>
+        <div class="toggle" id="autoRotateToggle"></div>
+      </div>
+      <div class="setting">
+        <label>Show labels</label>
+        <div class="toggle" id="labelsToggle"></div>
+      </div>
+      <div class="setting">
+        <label>Speed</label>
+        <input type="range" class="slider" id="speedSlider" min="50" max="500" value="200">
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTER — CANVAS -->
+  <div class="canvas-wrap">
+    <canvas id="cube-canvas"></canvas>
+
+    <div class="corner-deco tl"></div>
+    <div class="corner-deco tr"></div>
+    <div class="corner-deco bl"></div>
+    <div class="corner-deco br"></div>
+
+    <div class="hud tl">
+      <div class="hud-block">
+        <div><span class="accent">●</span> CUBE 3×3×3</div>
+        <div><span class="hot">●</span> 26 PIECES</div>
+        <div><span class="gold">●</span> 54 STICKERS</div>
+      </div>
+    </div>
+
+    <div class="hud tr">
+      <div class="hud-block">
+        STATE: <span class="accent" id="hudState">SOLVED</span><br>
+        LAST: <span class="hot" id="hudLast">—</span><br>
+        FPS: <span class="gold" id="hudFps">60</span>
+      </div>
+    </div>
+
+    <div class="hud bl">
+      <div class="hud-block">
+        DRAG · ROTATE VIEW<br>
+        SCROLL · ZOOM<br>
+        KEYS · MOVE FACES
+      </div>
+    </div>
+
+    <div class="hud br">
+      <div class="hud-block">
+        <div class="big" id="hudTimer">00:00</div>
+        <div style="margin-top:4px">MOVES: <span class="accent" id="hudMoves">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR — MOVES + HISTORY -->
+  <aside class="right">
+    <div class="panel">
+      <div class="panel-title">Face Rotations</div>
+      <div class="face-label">CLOCKWISE</div>
+      <div class="moves-grid">
+        <button class="move-btn" data-move="U"><span class="face">U</span><span class="dir">UP</span></button>
+        <button class="move-btn" data-move="D"><span class="face">D</span><span class="dir">DOWN</span></button>
+        <button class="move-btn" data-move="L"><span class="face">L</span><span class="dir">LEFT</span></button>
+        <button class="move-btn" data-move="R"><span class="face">R</span><span class="dir">RIGHT</span></button>
+        <button class="move-btn" data-move="F"><span class="face">F</span><span class="dir">FRONT</span></button>
+        <button class="move-btn" data-move="B"><span class="face">B</span><span class="dir">BACK</span></button>
+      </div>
+      <div class="face-label">COUNTER-CLOCKWISE</div>
+      <div class="moves-grid">
+        <button class="move-btn" data-move="U'"><span class="face">U'</span><span class="dir">UP</span></button>
+        <button class="move-btn" data-move="D'"><span class="face">D'</span><span class="dir">DOWN</span></button>
+        <button class="move-btn" data-move="L'"><span class="face">L'</span><span class="dir">LEFT</span></button>
+        <button class="move-btn" data-move="R'"><span class="face">R'</span><span class="dir">RIGHT</span></button>
+        <button class="move-btn" data-move="F'"><span class="face">F'</span><span class="dir">FRONT</span></button>
+        <button class="move-btn" data-move="B'"><span class="face">B'</span><span class="dir">BACK</span></button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Move History</div>
+      <div class="history" id="history">
+        <div class="history-empty">No moves yet.</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>RUBIK SIMULATOR · BUILT FOR <span class="accent">DEEPTANSHU</span></span>
+    <span>WEBGL · THREE.JS · <span class="hot">FULL POWER MODE</span></span>
+  </footer>
+
+</div>
+
+<div class="keyboard-hints" id="keyHints">
+  <span><kbd>U</kbd><kbd>D</kbd><kbd>L</kbd><kbd>R</kbd><kbd>F</kbd><kbd>B</kbd> moves</span>
+  <span><kbd>SHIFT</kbd> + key for prime</span>
+  <span><kbd>S</kbd> scramble</span>
+  <span><kbd>R</kbd> reset</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ===================================================================
+   RUBIK'S CUBE SIMULATOR
+   Built with Three.js — no external solver, pure animation + state
+   =================================================================== */
+
+const FACE_COLORS = {
+  U: 0xffffff,  // white (top)
+  D: 0xffd500,  // yellow (bottom)
+  F: 0x009b48,  // green (front)
+  B: 0x0046ad,  // blue (back)
+  L: 0xff5800,  // orange (left)
+  R: 0xb71234,  // red (right)
+  INNER: 0x0a0a0f
+};
+
+const CUBE_SIZE = 0.96;     // size of each cubie
+const GAP = 0.04;           // gap between cubies
+const TOTAL = CUBE_SIZE + GAP;
+const STICKER_SIZE = 0.86;
+const ROUND_RADIUS = 0.08;
+
+/* ============ SCENE SETUP ============ */
+const canvas = document.getElementById('cube-canvas');
+const scene = new THREE.Scene();
+scene.background = null;
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(5, 5, 7);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+function resizeRenderer(){
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resizeRenderer);
+resizeRenderer();
+
+/* ============ LIGHTING ============ */
+const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+keyLight.position.set(8, 12, 8);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.left = -6;
+keyLight.shadow.camera.right = 6;
+keyLight.shadow.camera.top = 6;
+keyLight.shadow.camera.bottom = -6;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x88ccff, 0.3);
+fillLight.position.set(-6, 4, -6);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0x00ffd1, 0.25);
+rimLight.position.set(0, -5, 5);
+scene.add(rimLight);
+
+/* ============ ROUNDED CUBE GEOMETRY ============ */
+function createRoundedBoxGeometry(width, height, depth, radius, smoothness){
+  const shape = new THREE.Shape();
+  const eps = 0.00001;
+  const r = radius - eps;
+  shape.absarc(eps, eps, eps, -Math.PI / 2, -Math.PI, true);
+  shape.absarc(eps, height - r * 2, eps, Math.PI, Math.PI / 2, true);
+  shape.absarc(width - r * 2, height - r * 2, eps, Math.PI / 2, 0, true);
+  shape.absarc(width - r * 2, eps, eps, 0, -Math.PI / 2, true);
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: depth - radius * 2,
+    bevelEnabled: true,
+    bevelSegments: smoothness * 2,
+    steps: 1,
+    bevelSize: radius,
+    bevelThickness: radius,
+    curveSegments: smoothness
+  });
+  geometry.center();
+  return geometry;
+}
+
+/* ============ CUBIE CREATION ============ */
+const cubieGeometry = createRoundedBoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, ROUND_RADIUS, 4);
+const cubieMaterial = new THREE.MeshStandardMaterial({
+  color: FACE_COLORS.INNER,
+  roughness: 0.5,
+  metalness: 0.1
+});
+
+function createSticker(color){
+  const geo = new THREE.PlaneGeometry(STICKER_SIZE, STICKER_SIZE);
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.05,
+    side: THREE.DoubleSide
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+const cubeGroup = new THREE.Group();
+scene.add(cubeGroup);
+
+// All cubies — each has position, original position, and stickers
+const cubies = [];
+
+function buildCube(){
+  // Clear any existing
+  while(cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
+  cubies.length = 0;
+
+  for (let x = -1; x <= 1; x++){
+    for (let y = -1; y <= 1; y++){
+      for (let z = -1; z <= 1; z++){
+        if (x === 0 && y === 0 && z === 0) continue; // skip center
+
+        const cubie = new THREE.Group();
+        const body = new THREE.Mesh(cubieGeometry, cubieMaterial.clone());
+        body.castShadow = true;
+        body.receiveShadow = true;
+        cubie.add(body);
+
+        // Add stickers on exposed faces
+        if (x === 1){
+          const s = createSticker(FACE_COLORS.R);
+          s.position.x = CUBE_SIZE/2 + 0.001;
+          s.rotation.y = Math.PI/2;
+          s.userData.face = 'R';
+          cubie.add(s);
+        }
+        if (x === -1){
+          const s = createSticker(FACE_COLORS.L);
+          s.position.x = -CUBE_SIZE/2 - 0.001;
+          s.rotation.y = -Math.PI/2;
+          s.userData.face = 'L';
+          cubie.add(s);
+        }
+        if (y === 1){
+          const s = createSticker(FACE_COLORS.U);
+          s.position.y = CUBE_SIZE/2 + 0.001;
+          s.rotation.x = -Math.PI/2;
+          s.userData.face = 'U';
+          cubie.add(s);
+        }
+        if (y === -1){
+          const s = createSticker(FACE_COLORS.D);
+          s.position.y = -CUBE_SIZE/2 - 0.001;
+          s.rotation.x = Math.PI/2;
+          s.userData.face = 'D';
+          cubie.add(s);
+        }
+        if (z === 1){
+          const s = createSticker(FACE_COLORS.F);
+          s.position.z = CUBE_SIZE/2 + 0.001;
+          s.userData.face = 'F';
+          cubie.add(s);
+        }
+        if (z === -1){
+          const s = createSticker(FACE_COLORS.B);
+          s.position.z = -CUBE_SIZE/2 - 0.001;
+          s.rotation.y = Math.PI;
+          s.userData.face = 'B';
+          cubie.add(s);
+        }
+
+        cubie.position.set(x * TOTAL, y * TOTAL, z * TOTAL);
+        cubie.userData = {
+          gridX: x, gridY: y, gridZ: z,
+          originalX: x, originalY: y, originalZ: z
+        };
+        cubeGroup.add(cubie);
+        cubies.push(cubie);
+      }
+    }
+  }
+}
+buildCube();
+
+/* ============ FACE DETECTION ============ */
+// Returns cubies belonging to a face based on current world position
+function getFaceCubies(face){
+  const threshold = 0.5;
+  return cubies.filter(c => {
+    const pos = new THREE.Vector3();
+    c.getWorldPosition(pos);
+    switch(face){
+      case 'U': return pos.y > threshold;
+      case 'D': return pos.y < -threshold;
+      case 'L': return pos.x < -threshold;
+      case 'R': return pos.x > threshold;
+      case 'F': return pos.z > threshold;
+      case 'B': return pos.z < -threshold;
+    }
+  });
+}
+
+/* ============ FACE ROTATION (ANIMATED) ============ */
+const FACE_AXIS = { U:'y', D:'y', L:'x', R:'x', F:'z', B:'z' };
+const FACE_DIR  = { U:-1,  D:1,   L:1,   R:-1,  F:-1,  B:1  };  // CW direction for each face
+
+let isAnimating = false;
+const moveQueue = [];
+let animationSpeed = 200; // ms per move
+
+function executeMove(move, recordHistory = true){
+  if (isAnimating) {
+    moveQueue.push({move, recordHistory});
+    return;
+  }
+  const face = move.replace("'", "").replace("2", "");
+  const isPrime = move.includes("'");
+  const isDouble = move.includes("2");
+
+  const axis = FACE_AXIS[face];
+  const dir = FACE_DIR[face] * (isPrime ? -1 : 1);
+  const turns = isDouble ? 2 : 1;
+  const totalAngle = dir * Math.PI / 2 * turns;
+
+  const facecubies = getFaceCubies(face);
+
+  // Create a temporary pivot group
+  const pivot = new THREE.Group();
+  scene.add(pivot);
+  facecubies.forEach(c => {
+    cubeGroup.remove(c);
+    pivot.add(c);
+  });
+
+  isAnimating = true;
+  const start = performance.now();
+  const duration = animationSpeed * turns;
+
+  function animate(){
+    const elapsed = performance.now() - start;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; // easeInOutQuad
+    pivot.rotation[axis] = eased * totalAngle;
+
+    if (t < 1){
+      requestAnimationFrame(animate);
+    } else {
+      // Snap to final
+      pivot.rotation[axis] = totalAngle;
+      pivot.updateMatrixWorld(true);
+
+      // Bake transforms into cubies & return to cubeGroup
+      facecubies.forEach(c => {
+        c.applyMatrix4(pivot.matrixWorld);
+        pivot.remove(c);
+        cubeGroup.add(c);
+        // Round positions to avoid drift
+        c.position.x = Math.round(c.position.x / TOTAL) * TOTAL;
+        c.position.y = Math.round(c.position.y / TOTAL) * TOTAL;
+        c.position.z = Math.round(c.position.z / TOTAL) * TOTAL;
+      });
+      scene.remove(pivot);
+      isAnimating = false;
+
+      if (recordHistory){
+        moveHistory.push(move);
+        updateHistoryDisplay();
+        moveCount++;
+        updateStats();
+        if (!timerStarted){ timerStarted = true; timerStart = performance.now(); }
+        checkSolved();
+      }
+
+      // Process queue
+      if (moveQueue.length > 0){
+        const next = moveQueue.shift();
+        executeMove(next.move, next.recordHistory);
+      }
+    }
+  }
+  animate();
+}
+
+/* ============ SOLVED CHECK ============ */
+function isSolved(){
+  // For each cubie, check that every sticker on it points to a face
+  // whose center matches the sticker's color (i.e., all stickers on one
+  // face are the same color)
+  const faceStickers = { U:[], D:[], L:[], R:[], F:[], B:[] };
+
+  cubies.forEach(cubie => {
+    cubie.children.forEach(child => {
+      if (!child.userData.face) return;
+      const worldNormal = new THREE.Vector3(0, 0, 1);
+      // determine which world face this sticker points to based on its world direction
+      const stickerPos = new THREE.Vector3();
+      child.getWorldPosition(stickerPos);
+      const cubiePos = new THREE.Vector3();
+      cubie.getWorldPosition(cubiePos);
+      const dir = stickerPos.clone().sub(cubiePos).normalize();
+
+      let worldFace;
+      const t = 0.5;
+      if (dir.y > t) worldFace = 'U';
+      else if (dir.y < -t) worldFace = 'D';
+      else if (dir.x > t) worldFace = 'R';
+      else if (dir.x < -t) worldFace = 'L';
+      else if (dir.z > t) worldFace = 'F';
+      else if (dir.z < -t) worldFace = 'B';
+
+      if (worldFace){
+        faceStickers[worldFace].push(child.userData.face);
+      }
+    });
+  });
+
+  for (const f in faceStickers){
+    if (faceStickers[f].length === 0) continue;
+    const first = faceStickers[f][0];
+    if (!faceStickers[f].every(x => x === first)) return false;
+  }
+  return true;
+}
+
+function checkSolved(){
+  if (moveHistory.length === 0) return;
+  if (isSolved()){
+    const totalTime = ((performance.now() - timerStart) / 1000);
+    const mins = Math.floor(totalTime / 60).toString().padStart(2, '0');
+    const secs = Math.floor(totalTime % 60).toString().padStart(2, '0');
+    document.getElementById('winTime').textContent = `${mins}:${secs}`;
+    document.getElementById('winMoves').textContent = moveCount;
+    document.getElementById('status').textContent = 'SOLVED';
+    document.getElementById('status').style.color = 'var(--accent)';
+    document.getElementById('hudState').textContent = 'SOLVED';
+    timerStarted = false;
+    setTimeout(() => {
+      document.getElementById('winModal').classList.add('show');
+    }, 400);
+  }
+}
+
+/* ============ MOUSE / TOUCH ROTATION ============ */
+let isDragging = false;
+let prevMouse = { x: 0, y: 0 };
+let cubeRotation = { x: -0.3, y: -0.5 };
+cubeGroup.rotation.x = cubeRotation.x;
+cubeGroup.rotation.y = cubeRotation.y;
+let autoRotate = false;
+
+canvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  autoRotate = false;
+  document.getElementById('autoRotateToggle').classList.remove('on');
+  prevMouse.x = e.clientX;
+  prevMouse.y = e.clientY;
+});
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - prevMouse.x;
+  const dy = e.clientY - prevMouse.y;
+  cubeRotation.y += dx * 0.01;
+  cubeRotation.x += dy * 0.01;
+  cubeRotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cubeRotation.x));
+  prevMouse.x = e.clientX;
+  prevMouse.y = e.clientY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+
+// touch
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1){
+    isDragging = true;
+    autoRotate = false;
+    prevMouse.x = e.touches[0].clientX;
+    prevMouse.y = e.touches[0].clientY;
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', (e) => {
+  if (!isDragging || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - prevMouse.x;
+  const dy = e.touches[0].clientY - prevMouse.y;
+  cubeRotation.y += dx * 0.01;
+  cubeRotation.x += dy * 0.01;
+  cubeRotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, cubeRotation.x));
+  prevMouse.x = e.touches[0].clientX;
+  prevMouse.y = e.touches[0].clientY;
+}, {passive:true});
+canvas.addEventListener('touchend', () => { isDragging = false; });
+
+// zoom
+let zoom = 9;
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoom += e.deltaY * 0.005;
+  zoom = Math.max(5, Math.min(16, zoom));
+}, {passive:false});
+
+/* ============ VIEW PRESETS ============ */
+const viewPresets = {
+  iso:   { x: -0.3, y: -0.5 },
+  front: { x: 0,    y: 0 },
+  back:  { x: 0,    y: Math.PI },
+  top:   { x: -Math.PI/2, y: 0 },
+  left:  { x: 0,    y: Math.PI/2 },
+  right: { x: 0,    y: -Math.PI/2 }
+};
+let viewTarget = null;
+document.querySelectorAll('[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.view;
+    viewTarget = viewPresets[v];
+  });
+});
+
+/* ============ STATE & UI ============ */
+let moveHistory = [];
+let moveCount = 0;
+let timerStarted = false;
+let timerStart = 0;
+
+function updateStats(){
+  document.getElementById('moveCount').textContent = moveCount;
+  document.getElementById('hudMoves').textContent = moveCount;
+}
+function updateTimer(){
+  if (!timerStarted){
+    document.getElementById('timer').textContent = '00:00';
+    document.getElementById('hudTimer').textContent = '00:00';
+    return;
+  }
+  const elapsed = (performance.now() - timerStart) / 1000;
+  const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  const secs = Math.floor(elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('timer').textContent = `${mins}:${secs}`;
+  document.getElementById('hudTimer').textContent = `${mins}:${secs}`;
+}
+
+function updateHistoryDisplay(){
+  const h = document.getElementById('history');
+  if (moveHistory.length === 0){
+    h.innerHTML = '<div class="history-empty">No moves yet.</div>';
+    return;
+  }
+  // Show last 60 moves
+  const recent = moveHistory.slice(-60);
+  h.innerHTML = recent.map((m, i) => {
+    const isLast = i === recent.length - 1;
+    const isPrime = m.includes("'");
+    return `<span class="history-move ${isLast?'recent':''} ${isPrime?'prime':''}">${m}</span>`;
+  }).join('');
+  h.scrollTop = h.scrollHeight;
+
+  document.getElementById('hudLast').textContent = moveHistory[moveHistory.length - 1] || '—';
+  document.getElementById('status').textContent = 'SCRAMBLED';
+  document.getElementById('status').style.color = 'var(--accent-2)';
+  document.getElementById('hudState').textContent = 'SCRAMBLED';
+}
+
+/* ============ MOVE BUTTONS ============ */
+document.querySelectorAll('.move-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (isAnimating && moveQueue.length > 5) return;
+    executeMove(btn.dataset.move);
+  });
+});
+
+/* ============ SCRAMBLE ============ */
+document.getElementById('scrambleBtn').addEventListener('click', () => {
+  if (isAnimating) return;
+  const faces = ['U','D','L','R','F','B'];
+  const modifiers = ['', "'"];
+  let lastFace = '';
+  const scrambleLength = 25;
+
+  for (let i = 0; i < scrambleLength; i++){
+    let face;
+    do {
+      face = faces[Math.floor(Math.random() * 6)];
+    } while (face === lastFace);
+    lastFace = face;
+    const mod = modifiers[Math.floor(Math.random() * 2)];
+    moveQueue.push({move: face + mod, recordHistory: true});
+  }
+
+  // Reset stats for scramble
+  moveHistory = [];
+  moveCount = 0;
+  timerStarted = false;
+  updateStats();
+  updateHistoryDisplay();
+
+  // Start the queue
+  if (!isAnimating && moveQueue.length > 0){
+    const next = moveQueue.shift();
+    executeMove(next.move, next.recordHistory);
+  }
+});
+
+/* ============ RESET ============ */
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (isAnimating) return;
+  moveQueue.length = 0;
+  buildCube();
+  moveHistory = [];
+  moveCount = 0;
+  timerStarted = false;
+  updateStats();
+  updateHistoryDisplay();
+  document.getElementById('status').textContent = 'SOLVED';
+  document.getElementById('status').style.color = 'var(--accent)';
+  document.getElementById('hudState').textContent = 'SOLVED';
+  document.getElementById('hudLast').textContent = '—';
+});
+
+/* ============ UNDO ============ */
+document.getElementById('undoBtn').addEventListener('click', () => {
+  if (isAnimating || moveHistory.length === 0) return;
+  const last = moveHistory.pop();
+  const inverse = last.includes("'") ? last.replace("'", "") : last + "'";
+  executeMove(inverse, false);
+  moveCount = Math.max(0, moveCount - 1);
+  updateStats();
+  // Re-render history without the popped move
+  updateHistoryDisplay();
+});
+
+/* ============ AUTO-SOLVE (reverse the move history) ============ */
+document.getElementById('solveBtn').addEventListener('click', () => {
+  if (isAnimating || moveHistory.length === 0) return;
+  const reversed = [...moveHistory].reverse().map(m =>
+    m.includes("'") ? m.replace("'", "") : m + "'"
+  );
+  moveHistory = [];
+  moveCount = 0;
+  updateStats();
+  reversed.forEach(m => moveQueue.push({move: m, recordHistory: false}));
+  if (!isAnimating && moveQueue.length > 0){
+    const next = moveQueue.shift();
+    executeMove(next.move, next.recordHistory);
+  }
+
+  // After all moves done, mark solved
+  const checkInterval = setInterval(() => {
+    if (!isAnimating && moveQueue.length === 0){
+      clearInterval(checkInterval);
+      timerStarted = false;
+      document.getElementById('status').textContent = 'SOLVED';
+      document.getElementById('status').style.color = 'var(--accent)';
+      document.getElementById('hudState').textContent = 'SOLVED';
+      updateHistoryDisplay();
+    }
+  }, 100);
+});
+
+/* ============ KEYBOARD ============ */
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  const key = e.key.toUpperCase();
+  const isShift = e.shiftKey;
+
+  if (['U','D','L','R','F','B'].includes(key)){
+    executeMove(key + (isShift ? "'" : ""));
+    e.preventDefault();
+  } else if (key === 'S'){
+    document.getElementById('scrambleBtn').click();
+  } else if (key === 'Z' && (e.ctrlKey || e.metaKey)){
+    document.getElementById('undoBtn').click();
+    e.preventDefault();
+  } else if (key === ' '){
+    document.getElementById('solveBtn').click();
+    e.preventDefault();
+  }
+
+  document.getElementById('keyHints').classList.add('show');
+  clearTimeout(window._kbHideTimer);
+  window._kbHideTimer = setTimeout(() => {
+    document.getElementById('keyHints').classList.remove('show');
+  }, 2500);
+});
+
+/* ============ SETTINGS ============ */
+document.getElementById('autoRotateToggle').addEventListener('click', (e) => {
+  e.currentTarget.classList.toggle('on');
+  autoRotate = e.currentTarget.classList.contains('on');
+});
+document.getElementById('labelsToggle').addEventListener('click', (e) => {
+  e.currentTarget.classList.toggle('on');
+  document.querySelectorAll('.hud').forEach(h => {
+    h.style.display = e.currentTarget.classList.contains('on') ? 'none' : '';
+  });
+});
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  animationSpeed = 550 - parseInt(e.target.value);
+});
+
+/* ============ FPS COUNTER ============ */
+let fpsLastTime = performance.now();
+let fpsFrames = 0;
+let fps = 60;
+
+/* ============ RENDER LOOP ============ */
+function animate(){
+  requestAnimationFrame(animate);
+
+  // smooth view interpolation
+  if (viewTarget){
+    cubeRotation.x += (viewTarget.x - cubeRotation.x) * 0.12;
+    cubeRotation.y += (viewTarget.y - cubeRotation.y) * 0.12;
+    if (Math.abs(viewTarget.x - cubeRotation.x) < 0.001 && Math.abs(viewTarget.y - cubeRotation.y) < 0.001){
+      viewTarget = null;
+    }
+  }
+
+  if (autoRotate && !isDragging){
+    cubeRotation.y += 0.005;
+  }
+
+  cubeGroup.rotation.x = cubeRotation.x;
+  cubeGroup.rotation.y = cubeRotation.y;
+
+  // smooth zoom
+  const targetCamDist = zoom;
+  const dir = camera.position.clone().normalize();
+  camera.position.lerp(dir.multiplyScalar(targetCamDist), 0.1);
+  camera.lookAt(0, 0, 0);
+
+  updateTimer();
+
+  // FPS
+  fpsFrames++;
+  const now = performance.now();
+  if (now - fpsLastTime >= 1000){
+    fps = Math.round(fpsFrames * 1000 / (now - fpsLastTime));
+    document.getElementById('hudFps').textContent = fps;
+    fpsFrames = 0;
+    fpsLastTime = now;
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ============ HIDE LOADER ============ */
+setTimeout(() => {
+  document.getElementById('loader').classList.add('hide');
+}, 800);
+
+/* ============ INITIAL HINTS ============ */
+setTimeout(() => {
+  document.getElementById('keyHints').classList.add('show');
+  setTimeout(() => {
+    document.getElementById('keyHints').classList.remove('show');
+  }, 4000);
+}, 1500);
+
+</script>
+
+</body>
+</html>
